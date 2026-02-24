@@ -109,11 +109,95 @@ body {
   transform: translateY(0) scale(1);
   will-change: transform;
   transition: transform 220ms ease, opacity 220ms ease, filter 220ms ease;
+  user-select: none;
+  pointer-events: none;
 }
 
-.card:nth-child(1) { transform: translateY(0) scale(1); }
-.card:nth-child(2) { transform: translateY(10px) scale(0.985); filter: brightness(0.95); }
-.card:nth-child(3) { transform: translateY(20px) scale(0.97); filter: brightness(0.9); }
+.card:first-child {
+  cursor: grab;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.card:nth-child(1) { transform: translateY(0) scale(1); z-index: 10; }
+.card:nth-child(2) { transform: translateY(10px) scale(0.985); filter: brightness(0.95); z-index: 9; }
+.card:nth-child(3) { transform: translateY(20px) scale(0.97); filter: brightness(0.9); z-index: 8; }
+
+/* Swipe & Drag States */
+.card--dragging {
+  transition: none !important;
+  cursor: grabbing;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+}
+
+.card--like,
+.card--nope,
+.card--super {
+  transition: transform 300ms ease-out, opacity 300ms ease-out !important;
+  pointer-events: none;
+}
+
+/* Action Stamps */
+.card__stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+  font-size: 48px;
+  font-weight: 900;
+  text-transform: uppercase;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: 5px solid;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+  transition: opacity 150ms ease;
+}
+
+.card__stamp--like {
+  color: var(--like);
+  border-color: var(--like);
+  transform: translate(-50%, -50%) rotate(15deg);
+}
+
+.card__stamp--nope {
+  color: var(--nope);
+  border-color: var(--nope);
+  transform: translate(-50%, -50%) rotate(-15deg);
+}
+
+.card__stamp--super {
+  color: var(--super);
+  border-color: var(--super);
+  transform: translate(-50%, -50%) rotate(0deg);
+}
+
+/* Photo indicators */
+.photo-indicators {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.photo-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transition: background 200ms ease, transform 200ms ease;
+}
+
+.photo-dot--active {
+  background: #fff;
+  transform: scale(1.2);
+}
 
 .card__media {
   height: 70%;
@@ -121,6 +205,7 @@ body {
   object-fit: cover;
   display: block;
   background: #222436;
+  transition: opacity 150ms ease;
 }
 
 .card__body {
