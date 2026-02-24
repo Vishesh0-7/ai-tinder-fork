@@ -98,6 +98,7 @@ const superLikeBtn = document.getElementById("superLikeBtn");
 let profiles = [];
 let currentProfileIndex = 0;
 let actionHistory = [];
+let animating = false;
 
 // Gesture state
 let gestureState = {
@@ -107,7 +108,8 @@ let gestureState = {
   currentY: 0,
   isDragging: false,
   startTime: 0,
-  activeCard: null
+  activeCard: null,
+  lastDragTime: 0
 };
 
 // Double-tap state
@@ -198,6 +200,7 @@ function resetDeck() {
   profiles = generateProfiles(12);
   currentProfileIndex = 0;
   actionHistory = [];
+  animating = false;
   renderDeck();
 }
 
@@ -368,6 +371,9 @@ function handleGestureEnd(e) {
   // Adjust threshold based on velocity
   const threshold = velocity > 0.5 ? 75 : 120;
   
+  // Track if we were dragging to prevent immediate click events
+  const wasDragging = gestureState.isDragging;
+  
   if (gestureState.isDragging) {
     // Determine if swipe was successful
     const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
@@ -395,7 +401,8 @@ function handleGestureEnd(e) {
     currentY: 0,
     isDragging: false,
     startTime: 0,
-    activeCard: null
+    activeCard: null,
+    lastDragTime: wasDragging ? Date.now() : gestureState.lastDragTime
   };
 }
 
@@ -444,9 +451,11 @@ function attachGestureHandlers() {
   
   // Double-tap for photo navigation
   topCard.addEventListener('click', (e) => {
-    if (gestureState.isDragging) return; // Ignore clicks during drag
-    
     const now = Date.now();
+    
+    // Ignore clicks that immediately follow a drag (within 250ms)
+    if (now - gestureState.lastDragTime < 250) return;
+    
     if (now - lastTapTime < DOUBLE_TAP_DELAY) {
       // Double tap detected
       e.preventDefault();
@@ -474,10 +483,13 @@ function animateCardExit(card, direction) {
 }
 
 function handleLike() {
+  if (animating) return;
+  
   const card = getTopCard();
   const profile = getCurrentProfile();
   if (!card || !profile) return;
   
+  animating = true;
   console.log('LIKE:', profile.name);
   actionHistory.push({ type: 'like', profile, timestamp: Date.now() });
   
@@ -485,14 +497,18 @@ function handleLike() {
     currentProfileIndex++;
     updateCardStack();
     attachGestureHandlers();
+    animating = false;
   });
 }
 
 function handleNope() {
+  if (animating) return;
+  
   const card = getTopCard();
   const profile = getCurrentProfile();
   if (!card || !profile) return;
   
+  animating = true;
   console.log('NOPE:', profile.name);
   actionHistory.push({ type: 'nope', profile, timestamp: Date.now() });
   
@@ -500,14 +516,18 @@ function handleNope() {
     currentProfileIndex++;
     updateCardStack();
     attachGestureHandlers();
+    animating = false;
   });
 }
 
 function handleSuperLike() {
+  if (animating) return;
+  
   const card = getTopCard();
   const profile = getCurrentProfile();
   if (!card || !profile) return;
   
+  animating = true;
   console.log('SUPER LIKE:', profile.name);
   actionHistory.push({ type: 'superlike', profile, timestamp: Date.now() });
   
@@ -515,6 +535,7 @@ function handleSuperLike() {
     currentProfileIndex++;
     updateCardStack();
     attachGestureHandlers();
+    animating = false;
   });
 }
 
@@ -539,6 +560,8 @@ shuffleBtn.addEventListener("click", resetDeck);
 // Keyboard support (accessibility)
 // -------------------
 document.addEventListener('keydown', (e) => {
+  // Ignore repeated keydown events when key is held
+  if (e.repeat) return;
   if (!getCurrentProfile()) return;
   
   switch(e.key) {
