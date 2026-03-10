@@ -99,6 +99,11 @@ let currentX = 0;
 let currentY = 0;
 let activeCard = null;
 
+// Action tracking
+let actionHistory = [];
+let isAnimating = false;
+const API_BASE = window.location.origin + "/api";
+
 // Double-tap detection
 let lastTapTime = 0;
 let lastTapX = 0;
@@ -113,9 +118,31 @@ function createStampEl(type) {
   return stamp;
 }
 
+// Fetch profiles from API with fallback to local generation
+async function fetchProfiles() {
+  try {
+    const res = await fetch(`${API_BASE}/profiles`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.map(p => ({ ...p, currentPhotoIndex: p.currentPhotoIndex || 0 }));
+  } catch (err) {
+    console.warn("API unavailable, using local generation:", err.message);
+    return generateProfiles(12);
+  }
+}
+
 function renderDeck() {
   deckEl.setAttribute("aria-busy", "true");
   deckEl.innerHTML = "";
+
+  if (profiles.length === 0) {
+    deckEl.innerHTML = `<div class="deck__empty">
+      <p>No more profiles!</p>
+      <button class="ghost-btn" onclick="resetDeck()">Shuffle New Deck</button>
+    </div>`;
+    deckEl.removeAttribute("aria-busy");
+    return;
+  }
 
   profiles.forEach((p, idx) => {
     const card = document.createElement("article");
@@ -333,11 +360,13 @@ function cyclePhoto() {
 }
 
 function dismissCard(action) {
+  if (isAnimating) return;
   const topCard = deckEl.querySelector(".card:first-child");
   if (!topCard) return;
 
-  // Reset active card reference
+  isAnimating = true;
   activeCard = null;
+  deckEl.setAttribute("aria-busy", "true");
 
   // Add dismiss animation class
   topCard.classList.add(`card--${action}`);
@@ -365,16 +394,30 @@ function dismissCard(action) {
   topCard.style.transform = `translate(${exitX}px, ${exitY}px) rotate(${rotation}deg)`;
   topCard.style.opacity = 0;
 
+  // Record action locally
+  const profile = profiles[0];
+  actionHistory.push({ profile, action, timestamp: Date.now() });
+
+  // POST action to backend (fire-and-forget)
+  fetch(`${API_BASE}/actions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profileId: profile.id, action })
+  }).catch(err => console.warn("Failed to record action:", err.message));
+
   // Remove card after animation
   setTimeout(() => {
     profiles.shift();
     renderDeck();
+    isAnimating = false;
+    deckEl.setAttribute("aria-busy", "false");
     console.log(`${action.toUpperCase()}: Card dismissed. ${profiles.length} remaining.`);
   }, 300);
 }
 
-function resetDeck() {
-  profiles = generateProfiles(12);
+async function resetDeck() {
+  profiles = await fetchProfiles();
+  actionHistory = [];
   renderDeck();
 }
 
@@ -382,19 +425,19 @@ function resetDeck() {
 // Button controls
 // -------------------
 likeBtn.addEventListener("click", () => {
-  if (profiles.length > 0) {
+  if (profiles.length > 0 && !isAnimating) {
     dismissCard("like");
   }
 });
 
 nopeBtn.addEventListener("click", () => {
-  if (profiles.length > 0) {
+  if (profiles.length > 0 && !isAnimating) {
     dismissCard("nope");
   }
 });
 
 superLikeBtn.addEventListener("click", () => {
-  if (profiles.length > 0) {
+  if (profiles.length > 0 && !isAnimating) {
     dismissCard("super");
   }
 });
@@ -411,5 +454,152 @@ document.addEventListener("touchmove", onDragMove, { passive: false });
 document.addEventListener("touchend", onDragEnd);
 document.addEventListener("touchcancel", onDragEnd);
 
+// -------------------
+// Push Notifications
+// -------------------
+const pushState = {
+  supported: false,
+  permission: Notification.permission || "default",
+  subscription: null,
+  registration: null,
+};
+
+function isPushSupported() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function renderPushBanner() {
+  // Remove existing banner if any
+  const existing = document.getElementById("pushBanner");
+  if (existing) existing.remove();
+
+  if (!pushState.supported) {
+    // Push not supported — show info banner
+    const banner = document.createElement("div");
+    banner.id = "pushBanner";
+    banner.className = "push-banner push-banner--unsupported";
+    banner.innerHTML = `<span>Push notifications are not supported in this browser.</span>`;
+    document.querySelector(".app__header").after(banner);
+    return;
+  }
+
+  if (pushState.permission === "granted" && pushState.subscription) {
+    // Already subscribed — no banner needed
+    return;
+  }
+
+  if (pushState.permission === "denied") {
+    const banner = document.createElement("div");
+    banner.id = "pushBanner";
+    banner.className = "push-banner push-banner--denied";
+    banner.innerHTML = `<span>Notifications blocked. Enable them in your browser settings to get match alerts.</span>`;
+    document.querySelector(".app__header").after(banner);
+    return;
+  }
+
+  // Default — show opt-in banner
+  const banner = document.createElement("div");
+  banner.id = "pushBanner";
+  banner.className = "push-banner";
+  banner.innerHTML = `
+    <span>Get notified about new matches and messages!</span>
+    <button class="push-banner__btn" id="enablePushBtn">Enable Notifications</button>
+    <button class="push-banner__dismiss" id="dismissPushBtn" aria-label="Dismiss">&times;</button>
+  `;
+  document.querySelector(".app__header").after(banner);
+
+  document.getElementById("enablePushBtn").addEventListener("click", requestPushPermission);
+  document.getElementById("dismissPushBtn").addEventListener("click", () => {
+    banner.remove();
+  });
+}
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return null;
+
+  try {
+    const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    console.log("[Push] Service worker registered:", registration.scope);
+    pushState.registration = registration;
+    return registration;
+  } catch (err) {
+    console.error("[Push] Service worker registration failed:", err);
+    return null;
+  }
+}
+
+async function subscribeToPush(registration) {
+  try {
+    // Fetch the VAPID public key from the server
+    const res = await fetch(`${API_BASE}/push/vapid-public-key`);
+    if (!res.ok) throw new Error(`Failed to fetch VAPID key: ${res.status}`);
+    const { publicKey } = await res.json();
+
+    // Convert URL-safe base64 to Uint8Array
+    const applicationServerKey = urlBase64ToUint8Array(publicKey);
+
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey,
+    });
+
+    // Send subscription to the server
+    await fetch(`${API_BASE}/push/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(subscription),
+    });
+
+    pushState.subscription = subscription;
+    console.log("[Push] Subscribed successfully");
+    return subscription;
+  } catch (err) {
+    console.error("[Push] Subscription failed:", err);
+    return null;
+  }
+}
+
+async function requestPushPermission() {
+  if (!pushState.supported) return;
+
+  const permission = await Notification.requestPermission();
+  pushState.permission = permission;
+
+  if (permission === "granted") {
+    const registration = pushState.registration || (await registerServiceWorker());
+    if (registration) {
+      await subscribeToPush(registration);
+    }
+  }
+
+  renderPushBanner();
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+async function initPush() {
+  pushState.supported = isPushSupported();
+
+  if (pushState.supported) {
+    const registration = await registerServiceWorker();
+    if (registration) {
+      // Check for existing subscription
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        pushState.subscription = existing;
+        pushState.permission = "granted";
+      }
+    }
+  }
+
+  renderPushBanner();
+}
+
 // Boot
 resetDeck();
+initPush();
