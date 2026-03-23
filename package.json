@@ -1,0 +1,30 @@
+{
+  "name": "ai-tinder-fork",
+  "version": "1.0.0",
+  "description": "AI-generated tinder frontend.",
+  "main": "app.js",
+  "scripts": {
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage --runInBand"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vishesh0-7/ai-tinder-fork.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Vishesh0-7/ai-tinder-fork/issues"
+  },
+  "homepage": "https://github.com/Vishesh0-7/ai-tinder-fork#readme",
+  "devDependencies": {
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0",
+    "supertest": "^7.2.2"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

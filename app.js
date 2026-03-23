@@ -600,6 +600,55 @@ async function initPush() {
   renderPushBanner();
 }
 
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    __test__: {
+      fetchProfiles,
+      renderDeck,
+      initSwipeEvents,
+      getEventPos,
+      onDragStart,
+      onDragMove,
+      onDragEnd,
+      cyclePhoto,
+      dismissCard,
+      resetDeck,
+      isPushSupported,
+      renderPushBanner,
+      registerServiceWorker,
+      subscribeToPush,
+      requestPushPermission,
+      urlBase64ToUint8Array,
+      initPush,
+      generateProfiles,
+      createStampEl,
+      getState: () => ({
+        profiles,
+        isDragging,
+        startX,
+        startY,
+        currentX,
+        currentY,
+        activeCard,
+        actionHistory,
+        isAnimating,
+        pushState,
+      }),
+      setProfilesForTest: (nextProfiles) => {
+        profiles = nextProfiles;
+      },
+      setAnimatingForTest: (value) => {
+        isAnimating = value;
+      },
+      resetTapStateForTest: () => {
+        lastTapTime = 0;
+      },
+    },
+  };
+}
+
 // Boot
-resetDeck();
-initPush();
+if (!(typeof window !== "undefined" && window.__AI_TINDER_DISABLE_AUTO_BOOT__)) {
+  resetDeck();
+  initPush();
+}

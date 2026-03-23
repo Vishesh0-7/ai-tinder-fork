@@ -6,31 +6,44 @@ const profilesRouter = require("./routes/profiles");
 const pushRouter = require("./routes/push"); // Load before actions so VAPID keys are configured
 const actionsRouter = require("./routes/actions");
 
-const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+function createApp() {
+  const app = express();
 
-// Serve frontend static files from parent directory
-app.use(express.static(path.join(__dirname, "..")));
+  // Middleware
+  app.use(cors());
+  app.use(express.json());
 
-// API routes
-app.use("/api/profiles", profilesRouter);
-app.use("/api/actions", actionsRouter);
-app.use("/api/push", pushRouter);
+  // Serve frontend static files from parent directory
+  app.use(express.static(path.join(__dirname, "..")));
 
-// Seed database on startup
-seedIfEmpty();
+  // API routes
+  app.use("/api/profiles", profilesRouter);
+  app.use("/api/actions", actionsRouter);
+  app.use("/api/push", pushRouter);
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-  console.log(`API endpoints:`);
-  console.log(`  GET  /api/profiles         — Fetch unseen profiles`);
-  console.log(`  POST /api/actions           — Record like/nope/super`);
-  console.log(`  GET  /api/actions/history   — View action history`);
-  console.log(`  GET  /api/push/vapid-public-key — Get VAPID public key`);
-  console.log(`  POST /api/push/subscribe   — Register push subscription`);
-  console.log(`  POST /api/push/send         — Send push to all subscribers`);
-});
+  return app;
+}
+
+function startServer(port = PORT) {
+  seedIfEmpty();
+  const app = createApp();
+
+  return app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+    console.log(`API endpoints:`);
+    console.log(`  GET  /api/profiles         — Fetch unseen profiles`);
+    console.log(`  POST /api/actions           — Record like/nope/super`);
+    console.log(`  GET  /api/actions/history   — View action history`);
+    console.log(`  GET  /api/push/vapid-public-key — Get VAPID public key`);
+    console.log(`  POST /api/push/subscribe   — Register push subscription`);
+    console.log(`  POST /api/push/send         — Send push to all subscribers`);
+  });
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { createApp, startServer, PORT };

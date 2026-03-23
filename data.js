@@ -3,7 +3,7 @@
 //
 // Students: you can swap this out for your own data source later.
 
-export const TAGS = [
+const TAGS = [
   "Coffee", "Hiking", "Movies", "Live Music", "Board Games",
   "Cats", "Dogs", "Traveler", "Foodie", "Tech", "Art",
   "Runner", "Climbing", "Books", "Yoga", "Photography"
@@ -56,7 +56,7 @@ const UNSPLASH_SEEDS = [
   "1531123897727-8f129e1688ce",
 ];
 
-export function generateProfiles(count = 12) {
+function generateProfiles(count = 12) {
   const profiles = [];
   for (let i = 0; i < count; i++) {
     const name = sample(FIRST_NAMES);
@@ -79,4 +79,18 @@ export function generateProfiles(count = 12) {
     });
   }
   return profiles;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    TAGS,
+    generateProfiles,
+  };
+}
+
+if (typeof window !== "undefined") {
+  window.AITinderData = {
+    TAGS,
+    generateProfiles,
+  };
 }
